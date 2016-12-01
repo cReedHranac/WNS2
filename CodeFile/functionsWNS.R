@@ -44,27 +44,11 @@ load.bat <- function(species = speciesOption){
 
 ########### Fungal Growth Dynamics ############
 
-rates.load <- function(rtype){
-  ### Function that loads the chosen parameter set for fungal growth ###
-  ## Argument: rtype - rate parameter set to use, takes one of the following values:
+load.fung <- function(growth=growthOption){
+  ### Function that loads the chosen parameter set for fungal growth and scales ###
+  ##Argument: growth - rate parameter set to use, takes one of the following values:
     ## "Chaturvedi" (greater growth) from Chaturvedi et al. PLoS One
     ## "Verant" (slower growth) from Verant et al. PLoS One
-  
-  pars <- read.csv("parameterFiles/rate.parms.csv")
-  if(rtype%in%names(pars)){
-    # Extract and return desired parameter set
-    pset <- subset(pars, select = c("pars",rtype))
-    return(pset)
-  }else{
-    warning("Unknown option selected for growth rate parameters.")
-  }
-}
-
-load.fung <- function(growth=growthOption){
-  ### Function that loads the chosen parameter set for fungal growth ###
-  ##Argument: growth - rate parameter set to use, takes one of the following values:
-  ## "Chaturvedi" (greater growth) from Chaturvedi et al. PLoS One
-  ## "Verant" (slower growth) from Verant et al. PLoS One
   
   pars <- read.csv("parameterFiles/rate.parms.csv")
   if(growth%in%names(pars)){
@@ -88,12 +72,12 @@ load.fung <- function(growth=growthOption){
   return(growthParams)
 }
 
-
+##### Model Engines ####
 detModel <- function(t,y,parms){
   require(deSolve)
   ### Fucntion for creating the deterministic model of fungal growth
   ##Arguments: t <- temperature
-  ##Arguments: y <- ??
+  ##Arguments: y <- dependant varriables
   ##Arguments: parms <- parameters related to fundal growth
   with(c(as.list(y),parms),{
     ttor  <-  calcTorporTime(Ttor,FungalArea,WNS,parms)
@@ -111,8 +95,8 @@ max_to_current <- function(x) {
   cummax(x)[-1]
 }
 
-dynamicEnergyPd <- function(Ta, twinter, Hd, WNS, modelParams = c(growthParams,batParams)){
-  require(deSolve)
+dynamicEnergyPd <- function(env.df, WNS=TRUE, modelParams = c(growthParams,batParams)){
+  require(deSolve); require(data.table)
   ### Function for determining the growth area of Pd, and the total amount of enegry consumed
   ##Arguments: Ta <- range of ambient temperture
   ##Arguments: twinter <- range of time of witner
@@ -120,6 +104,8 @@ dynamicEnergyPd <- function(Ta, twinter, Hd, WNS, modelParams = c(growthParams,b
   ##Arguments: WNS <- is WNS in the model (Logical)
   ##Arguments: modelParams <- model parameters loaded through functionsWNS.R
   blah <- with(as.list(modelParams),{
+    Ta <- env.df[[1]]
+    Hd <- env.df[[2]]
     if(beta3>=Teu){
       warning("The model assumes fungal growth does not to occur at euthermic temperatures.\nThis assumption is violated in the specified parameter range.")
     }		
@@ -135,13 +121,13 @@ dynamicEnergyPd <- function(Ta, twinter, Hd, WNS, modelParams = c(growthParams,b
                 #- Predefined parameters -#
                 modelParams)
     # run deterministic model with dynamic fungal growth\
-    ts <- as.data.frame(lsoda( y = c(pT=1,
-                                     pE=0,
-                                     EnergyConsumed=0,
-                                     FungalArea=0),
-                               times = c(0, twinter),
-                               func = detModel,
-                               parms = values))
+    ts <- data.table(lsoda( y = c(pT=1,
+                                  pE=0,
+                                  EnergyConsumed=0,
+                                  FungalArea=0),
+                            times = twinter,
+                            func = detModel,
+                            parms = values))
     
     # EnergyConsumed should be monotone increasing, so we should just be able to grab the energy
     # consumed at each time point, but in case it can go down in some other variation of the model
@@ -149,13 +135,10 @@ dynamicEnergyPd <- function(Ta, twinter, Hd, WNS, modelParams = c(growthParams,b
     # to fungal area.
     Ewinter  <-  max_to_current(ts$EnergyConsumed)    # energy used over full winter duration
     fatConsumed  <-  convertToFat(Ewinter) # convert Ewinter to grams of fat consumed (over full winter duration)
-    results <- cbind(grams=fatConsumed, area=max_to_current(ts$FungalArea)) # results - grams of fat consumed, plus area of total Pd growth (Pd)
+    results <- data.table(Ta = Ta, Humidity = Hd, cbind(GfatConsumed=c(0,fatConsumed), Pdgrowth=c(0,max_to_current(ts$FungalArea)), time=ts$time)) # results - grams of fat consumed, plus area of total Pd growth (Pd)
     return(results)
   })
 }
-
-
-
 
 ########### Model functions ############
 

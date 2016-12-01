@@ -1,0 +1,103 @@
+---
+title: "White-Nose Syndrome Energetic Model"
+author: "C. Reed Hranac"
+date: "30 November 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Create the workspace
+```{r}
+rm(list = ls())
+verbose = F
+source("CodeFile/packagesHaymanWNS.R")
+source("CodeFile/functionsWNS.R")
+rm(verbose)
+```
+
+##Set up the model options
+
+In this section you choose which of the fungal growth models to use.
+Options are:
+  Chatruvedi et al 2010 (more aggressive growth)
+  Verant et al 2012 (slower growth)
+
+You also choose which of the species (or species parameters) to model.
+Options are:
+  M.lucifugus (little brown bats)
+  M.myotis (European myotis)
+  E.serotinus (serotine bats)
+  E.fuscus (Big brown bats)
+  M.yumanensis (Yuma myotis)*
+  M.californicus (California myotis)*
+    *Note: Species also have maximum and minimum parameter sets available under current build
+    
+You will have to specify if the model should include dynamic hibernation or not (TRUE or FALSE).
+Should the model include Pd (TRUE or FALSE)?
+
+Lastly, you can also have the model print parameter estimations and other information
+    
+```{r}
+growthOption <- "Chaturvedi"
+growthParams <- load.fung()
+speciesOption <- "M.californicus"
+batParams <- load.bat()
+dynamic <- TRUE
+WNS <- FALSE
+verbose <- FALSE
+```
+
+##Set Environmental Parameters
+From here you need to set the environmental ranges to run the analysis across
+```{r}
+Ta <- seq(from = -10, to = 22, by = 1) #From -10C to 22C (maximum temp for growth)
+Hd <- seq(from = 60, to = 100, by = 1) #From 60 - 100% relative humidity
+env <- expand.grid(Ta,Hd);names(env) <- c("Ta", "Hd")
+twinter <- seq(from = 0, to = 9*24*30+1, by = 24) #Maximum time of winter is 9 months, broken at daily intervals 
+```
+
+##Running the Model
+Now we can actually run the model across the environmental conditions that we've determined and harvest the results.
+
+```{r}
+#load packages 
+library(deSolve); library(data.table)
+system.time(mod.ls <- apply(env, 1, dynamicEnergyPd)) #879 (at by= .33) | (by = 1) PC: 136, 56, 61,63,66  MAC: 61,75,68,65,73
+mod.dt <- data.table(do.call(rbind, mod.ls))
+head(mod.dt)
+
+```
+
+##Exploring
+We now have the raw results from the model and can explore them.
+
+To start let's add a column of whether the bats would survive a hibernation of that length or not based on the fat reserve estimations from Kunz et al (.3 of body mass). You can change this at will, or create new columns with different estimations to test the change in winter survival time. 
+```{r}
+fat.rsrv <- .3
+mod.dt$SURV <- ifelse(fat.rsrv*batParams["mass"] >= mod.dt$GfatConsumed,1,0)
+head(mod.dt)
+rsrv.mod <- .35
+mod.dt$SURV.mod <- ifelse(rsrv.mod*batParams["mass"] >= mod.dt$GfatConsumed,1,0)
+
+## Table of conditions were the change would increase survival
+mod.sub <- subset(mod.dt, mod.dt[,mod.dt$SURV != mod.dt$SURV.mod])
+
+```
+We can also simply make a column with the amount of fat remaining for any point through out the winter which can tell us by how much they meet, or miss the energy required for those conditions
+```{r}
+mod.dt$GfatRemain <- fat.rsrv*batParams["mass"] - mod.dt$GfatConsumed
+head(mod.dt)
+```  
+
+```{r}
+library(dplyr)
+
+mod.out <- mod.dt %>% group_by(Ta, Humidity) %>% summarize(maxTime = max(time*SURV), Pdgrowth = Pdgrowth[which.max(time*SURV)]) %>% ungroup %>% data.table
+
+dirOut <- "ModOut/"
+write.csv(x = mod.out, file = paste0(dirOut,"res",speciesOption,growthOption,WNS,".csv"),row.names = F)
+```
+

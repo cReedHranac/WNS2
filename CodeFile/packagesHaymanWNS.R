@@ -1,6 +1,11 @@
 # packagesHaymanWNS.R
 
 ### Checks for required packages and installs if not present ###
+local({r <- getOption("repos")
+r["CRAN"] <- "https://cran.r-project.org"
+options(repos=r)
+})
+getOption("repos")
 
 
 packs <- rownames(installed.packages()) # names of all installed packages

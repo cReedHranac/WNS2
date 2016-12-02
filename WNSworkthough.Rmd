@@ -6,6 +6,8 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -21,22 +23,22 @@ rm(verbose)
 ##Set up the model options
 
 In this section you choose which of the fungal growth models to use.
-Options are:
-  Chatruvedi et al 2010 (more aggressive growth)
-  Verant et al 2012 (slower growth)
+Options are:  
+    --  Chatruvedi et al 2010 (more aggressive growth)  
+    --  Verant et al 2012 (slower growth)  
 
-You also choose which of the species (or species parameters) to model.
-Options are:
-  M.lucifugus (little brown bats)
-  M.myotis (European myotis)
-  E.serotinus (serotine bats)
-  E.fuscus (Big brown bats)
-  M.yumanensis (Yuma myotis)*
-  M.californicus (California myotis)*
+You also choose which of the species (or species parameters) to model.  
+Options are:  
+    -- M.lucifugus (little brown bats),  
+    -- M.myotis (European myotis),  
+    -- E.serotinus (serotine bats),  
+    -- E.fuscus (Big brown bats),  
+    -- M.yumanensis (Yuma myotis)\*,  
+    -- M.californicus (California myotis)\*,  
     *Note: Species also have maximum and minimum parameter sets available under current build
     
-You will have to specify if the model should include dynamic hibernation or not (TRUE or FALSE).
-Should the model include Pd (TRUE or FALSE)?
+You will have to specify if the model should include dynamic hibernation or not (TRUE or FALSE).  
+Should the model include Pd (TRUE or FALSE)?  
 
 Lastly, you can also have the model print parameter estimations and other information
     
@@ -56,16 +58,16 @@ From here you need to set the environmental ranges to run the analysis across
 Ta <- seq(from = -10, to = 22, by = 1) #From -10C to 22C (maximum temp for growth)
 Hd <- seq(from = 60, to = 100, by = 1) #From 60 - 100% relative humidity
 env <- expand.grid(Ta,Hd);names(env) <- c("Ta", "Hd")
-twinter <- seq(from = 0, to = 9*24*30+1, by = 24) #Maximum time of winter is 9 months, broken at daily intervals 
+twinter <- seq(from = 0, to = 9*24*30*1, by = 24) #Maximum time of winter is 9 months, broken at daily intervals 
 ```
 
 ##Running the Model
 Now we can actually run the model across the environmental conditions that we've determined and harvest the results.
 
-```{r}
+```{r, warning=FALSE}
 #load packages 
 library(deSolve); library(data.table)
-system.time(mod.ls <- apply(env, 1, dynamicEnergyPd)) #879 (at by= .33) | (by = 1) PC: 136, 56, 61,63,66  MAC: 61,75,68,65,73
+mod.ls <- apply(env, 1, dynamicEnergyPd) 
 mod.dt <- data.table(do.call(rbind, mod.ls))
 head(mod.dt)
 
@@ -92,7 +94,7 @@ mod.dt$GfatRemain <- fat.rsrv*batParams["mass"] - mod.dt$GfatConsumed
 head(mod.dt)
 ```  
 
-```{r}
+```{r,results='hide',message=FALSE,warning=FALSE}
 library(dplyr)
 
 mod.out <- mod.dt %>% group_by(Ta, Humidity) %>% summarize(maxTime = max(time*SURV), Pdgrowth = Pdgrowth[which.max(time*SURV)]) %>% ungroup %>% data.table

@@ -64,7 +64,7 @@ twinter <- seq(from = 0, to = 9*24*30*1, by = 24) #Maximum time of winter is 9 m
 ##Running the Model
 Now we can actually run the model across the environmental conditions that we've determined and harvest the results.
 
-```{r, warning=FALSE}
+```{r,message=FALSE,warning=FALSE}
 #load packages 
 library(deSolve); library(data.table)
 mod.ls <- apply(env, 1, dynamicEnergyPd) 

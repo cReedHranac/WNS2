@@ -95,7 +95,7 @@ max_to_current <- function(x) {
   cummax(x)[-1]
 }
 
-dynamicEnergyPd <- function(env.df, WNS=TRUE, modelParams = c(growthParams,batParams)){
+dynamicEnergyPd <- function(env.df, WNS, modelParams = c(growthParams,batParams)){
   require(deSolve); require(data.table)
   ### Function for determining the growth area of Pd, and the total amount of enegry consumed
   ##Arguments: Ta <- range of ambient temperture

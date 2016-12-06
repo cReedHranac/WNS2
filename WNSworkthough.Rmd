@@ -67,7 +67,7 @@ Now we can actually run the model across the environmental conditions that we've
 ```{r,message=FALSE,warning=FALSE}
 #load packages 
 library(deSolve); library(data.table)
-mod.ls <- apply(env, 1, dynamicEnergyPd) 
+mod.ls <- apply(env, 1, dynamicEnergyPd, WNS = WNS) 
 mod.dt <- data.table(do.call(rbind, mod.ls))
 head(mod.dt)
 

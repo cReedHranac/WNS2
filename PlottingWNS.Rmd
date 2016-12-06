@@ -1,0 +1,147 @@
+---
+title: "PlottingWNS"
+author: "C. Reed Hranac"
+date: "2 December 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(tidy.opts=list(width.cutoff=60),tidy=TRUE)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reading in data
+```{r,warning=FALSE,message=FALSE}
+rm(list=ls()) ## Cleans workspace
+
+    ##### Model Results
+cal.F <- read.csv("ModOut/resM.californicusChaturvediFALSE.csv") #No Pd
+cal.T <- read.csv("ModOut/resM.californicusChaturvediTRUE.csv") #With Pd
+
+    ##### Environmental Data
+library(raster)
+Mtemp <- raster("parameterFiles/wxMeanTempUSv1.asc")
+RH <- raster("parameterFiles/wxRHUS.asc")
+nights <- raster("parameterFiles/wxnightsUS.asc")
+
+    ##### Read in Species Distributions 
+library(rgdal)
+map_MyYu <- readOGR("parameterFiles/ShapeFiles", "myotis_yumanensis")
+map_MyCa <- readOGR("parameterFiles/ShapeFiles", "moyotis_californicus")
+
+    ##### Read in World Map
+library(ggplot2)
+world_map <- map_data("world")
+```
+
+##Plotting Fuctions
+```{r}
+survivalRast <- function(survival_results, rel_humidity=RH, temperature_in_K=Mtemp){
+  ###Function for plotting maps illistration the spatial survival of a species
+  ##Arguments:
+  ##  survival_results <- output .csv from model
+  ##  rel_humidity <- raster of relative humidity valutes (currently at 2.5 degree)
+  ##  temperature_in_K <- raster of temp (same res)
+  
+  ### N.B. Long calc time
+  
+  # temperature is recorded in Kelvin, so make into deg. Celcuis.
+  tempC <- temperature_in_K-273
+  # create empty raster at the smallest extent
+  output <-raster(rel_humidity)
+  values(output) <- NA
+  
+for(i in 1:ncell(RH)){    
+  output[i] <-survival_results[which(abs(survival_results$Humidity-rel_humidity[i]) == min(abs(survival_results$Humidity-rel_humidity[i]))
+                            & abs(survival_results$Ta-tempC[i]) == min(abs(survival_results$Ta-tempC[i]))),"maxTime"]  
+  }
+  surv.rast <- (output/(30*24))
+  return(surv.rast)
+}
+
+surv.df <-function(surv.raster, dist.map){
+	###Function for converting the survival raster into a dataframe of months survived. 
+  ##Arguments:
+  ## surv.rast <- output from survivalRas()
+  ## dist.map <- shapfile distrubution of species selected 
+	spec.r.d <- raster::shift(surv.raster,x=-360) # shift the axis for overlay
+	spec.r.crop <- crop(spec.r.d,extent(dist.map),weight=T)
+	spec.r.crop <- mask(spec.r.crop, dist.map)
+	coldnightUS <- raster::shift(nights,x=-360)
+	cold.crop <- crop(coldnightUS,extent(dist.map),weight=T)
+	spec.night.crop <- mask(cold.crop, dist.map)
+	tt.spec <- spec.r.crop-spec.night.crop*(365/30)
+	spec.Pt = rasterToPoints(tt.spec)
+	spec.df = data.frame(spec.Pt)
+	colnames(spec.df) <-c ("Longitude","Latitude","Months")
+	return(spec.df)
+}
+
+surv.ploter <- function(surv.raster, dist.map, key=NA){
+  ###Function for plotting the survival raster @ contiental N. America scale
+  ##Arguments:
+  ## surv.rast <- Output from survivalRas
+  ## dist.map <- Shapfile distrubution of species selected
+  require(PBSmapping)
+	
+  spec.df <- surv.df(surv.raster,dist.map)
+
+	xlim = c(-170,-52)
+	ylim = c(10,70)
+	worldmap = map_data("world")
+	setnames(worldmap, c("X","Y","PID","POS","region","subregion"))
+	worldmap = clipPolys(worldmap, xlim=xlim,ylim=ylim, keepExtra=TRUE)
+	g.spec <- ggplot(spec.df) + 
+	  aes(x=Longitude, y=Latitude, fill=Months) + 
+	  geom_raster( aes(fill=Months), interpolate = TRUE) +   
+	  geom_polygon(data=worldmap, aes(X,Y,group=PID),
+																alpha=0,
+																fill = "darkseagreen",
+																color="grey50") +  
+	  scale_fill_gradient2 (#low="moccasin",high="green4",
+		limits=c(-8,8)) 
+	                   #geom_text(data = NULL, x = -170, y = 75, label = key))
+	
+	return(g.spec)
+}
+
+diff.hist <- function(Comp1.rast, Comp2PD.rast, dist.map, SpeciesName, key=NA, keylocX=-4, keylocY, lsize=1){
+  ###Function for creating overlapping histograms of survival length
+  ##Arguments:
+  ## Comp1.rast <- Output from survivalRas (generally no PD)
+  ## Comp2PD.rast <- Output from survivalRas (generally with PD)
+  ## dist.map <- Shapfile distrubution of species selected
+  ## SpeciesName <- character string for plotting 
+  ## key <- figure key for plotting
+  ## Other key items included
+  ##Comp1 df Gen
+  Comp1.df <- surv.df(Comp1.rast, dist.map)
+  ##Comp2 df Gen
+  Comp2.df <- surv.df(Comp2PD.rast, dist.map)
+  #Creating Histograms
+  dif.df<-data.frame(Months=c(Comp1.df$Months,Comp2.df$Months),
+                     WNS=factor(c(rep(paste0(SpeciesName,"Pre"),nrow(Comp1.df)),
+                                  rep(paste0(SpeciesName,"Post"),nrow(Comp2.df)))))
+dif.hist.df <- ddply(dif.df, "WNS", summarise, Months.median=median(Months))
+dif.Hist<-ggplot(dif.df, aes(x=Months, fill=WNS)) +
+  geom_histogram(binwidth=.5, alpha=.5, position="identity") +xlim(-5,6) + 
+  geom_vline(data=dif.hist.df, aes(xintercept=Months.median,  colour=WNS),
+             linetype="dashed", size=lsize)+
+  geom_vline(xintercept = 0)
+dif.Hist<-dif.Hist + geom_text(data = NULL, x = keylocX, y = keylocY, label = key)
+return(dif.Hist)
+}										 						 
+
+```
+##Using it
+
+```{r}
+calRas.f <- survivalRast(cal.F)
+calRas.t <- survivalRast(cal.T)
+
+calplot.f <- surv.ploter(calRas.f, map_MyCa)
+calplot.t <- surv.ploter(calRas.t, map_MyCa)
+
+calhist <- diff.hist(Comp1.rast = calRas.f,Comp2PD.rast = calRas.t, dist.map =  map_MyCa,SpeciesName = "M. cal",key = "A",keylocX = 24, keylocY = 6)
+```

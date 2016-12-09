@@ -144,4 +144,5 @@ calplot.f <- surv.ploter(calRas.f, map_MyCa)
 calplot.t <- surv.ploter(calRas.t, map_MyCa)
 
 calhist <- diff.hist(Comp1.rast = calRas.f,Comp2PD.rast = calRas.t, dist.map =  map_MyCa,SpeciesName = "M. cal",key = "A",keylocX = 24, keylocY = 6)
+
 ```

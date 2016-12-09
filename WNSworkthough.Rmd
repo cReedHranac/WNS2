@@ -38,17 +38,18 @@ Options are:
     *Note: Species also have maximum and minimum parameter sets available under current build
     
 You will have to specify if the model should include dynamic hibernation or not (TRUE or FALSE).  
+
 Should the model include Pd (TRUE or FALSE)?  
 
 Lastly, you can also have the model print parameter estimations and other information
-    
+verbose (T/F)    
 ```{r}
 growthOption <- "Chaturvedi"
 growthParams <- load.fung()
 speciesOption <- "M.californicus"
 batParams <- load.bat()
 dynamic <- TRUE
-WNS <- FALSE
+WNS <- T 
 verbose <- FALSE
 ```
 

@@ -169,9 +169,11 @@ calcEnergyPerTimeTorpor <- function(ambTemp, params, Q=calcQ(ambTemp)){
             TMRmin + (Ttormin-ambTemp)*Ct)
   })}
 # Calculate energy needed for arousal, given torpid body temperature
+  ### FIND TORPIDTEMP
+  ### 
 calcEnergyArousal <- function(torpidTemp, params){
   with(as.list(params),
-       (Teu - torpidTemp)*S
+       (Teu - torpidTemp)*S #*mass +
   )}
 # Methods equations 9 and 10 - Caluculate time in torpor as a function of ambient temperature and fungal area
 calcTorporTime <- function(ambTemp, areaPd, inf, params, Q=calcQ(ambTemp)){
